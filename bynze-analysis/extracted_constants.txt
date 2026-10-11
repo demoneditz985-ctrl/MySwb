@@ -1,0 +1,168 @@
+# strings: tag(04)+u32 len+bytes(\0-terminated), validated
+0x0000049  string
+0x0000055  char
+0x000005f  table
+0x000006a  unpack
+0x0000076  
+
+
+Bynze 3.4.2 Beta Private ~> @YX048
+0x001b0f1  _G
+0x001b1c8  code
+0x001b1d2  gmatch
+0x001b21d  write
+0x001b23a  close
+0x001b257  read
+0x001b26a  hot
+0x001b273  bynze
+0x001b2a3  current_time
+0x001b2b5  time_match
+0x001b2d9  if_time_not_matched
+0x001b30d  gsub
+0x001b332  match
+0x001b36a  index
+0x001b3a2  checkHack
+0x001b3c3  clock
+0x001b3ce  spam
+0x001b429  BASE_URL
+0x001b506  APP_NAME
+0x001b5e3  menu
+0x001b5ed  fastToast
+0x001b5fe  INTEGRATION_SECRET
+0x001b61f  MemoryPatcher
+0x001b632  pc
+0x001b63a  APP_VERSION
+0x001c281  gigaByte
+0x001c2b3  megaByte
+0x001c2ee  kiloByte
+0x001c320  _G
+0x001c34c  read
+0x001c371  sub
+0x001c637  _G
+0x001caf7  _G
+0x001d0af  _G
+0x001d0c0  read
+0x001d8bd  _G
+0x001df18  _G
+0x001fd4f  _G
+0x001fdde  find
+0x001fe39  A
+0x001fe76  read
+0x001fee3  match
+0x00200a0  _G
+0x00200a8  type
+0x00200b2  Ynx
+0x00206e7  YNX_L007
+0x0020722  sorts
+0x0020745  table
+0x0020750  char
+0x00207da  tonumber
+0x0020890  tostring
+0x0025524  2
+0x00255f1  table
+0x002564d  pairs
+0x00257d2  1
+0x00258c3  Bynze 3.5
+0x0025947  insert
+0x0025989  In the midst of chaos, there is also opportunity.
+0x00260bb  1
+0x00260c2  2
+0x0030abe  1
+0x0030b82  Wheels of justice grind slow but grind fine.
+0x0030bbd  Bynze 3.6
+0x0030c2f  /
+0x0030c51  gmatch
+0x0030cf6  Bynze 3.7
+0x0030d0e  pairs
+0x0030d4c  One mark of a great soldier is that he fight on his own terms or fights not at all.
+0x0030dee  2
+0x0030eb2  code
+0x0030faf  %/(.-)%:
+0x003100e  error
+0x0031034  pcall
+0x003106c  Bynze 3.8
+0x0031084  YnxLua
+0x00310d8  0
+0x0031369  If you fight with all your might, there is a chance of life; where as death is certain if you cling to your corner.
+0x00313eb  Bynze 3.9
+0x0031478  There are roads which must not be followed, armies which must not be attacked, towns which must not be besieged, positions which must not be contested, commands of the sovereign which must not be obeyed.
+0x0031672  Bynze 3.10
+0x0031694  Bynze 3.11
+0x0031761  There are five dangerous faults which may affect a general: (1) Recklessness, which leads to destruction; (2) cowardice, which leads to capture; (3) a hasty temper, which can be provoked by insults; (4) a delicacy of honor which is sensitive to shame; (5) over-solicitude for his men, which exposes him to worry and trouble.
+0x0031a2e  type
+0x0031a4a  table
+0x0031a5e  Bynze 3.12
+0x0031b22  a_index
+0x0031c58  Bynze 3.13
+0x0031c71  Bynze 3.14
+0x0031d08  The art of war is of vital importance to the State. It is a matter of life and death, a road either to safety or to ruin. Hence it is a subject of inquiry which can on no account be neglected.
+0x0031de9  3
+0x0031df9  5
+0x0031e00  256
+0x0031e1b  string
+0x0031e27  char
+0x0031e43  concat
+0x003208b  0
+0x00326ea  gg
+0x0032704  getFile
+0x0032dbd  2
+0x0032df1  sorts
+0x0032e05  table
+0x003302c  2
+0x0033069  pairs
+0x0033134  a_index
+0x003314a  There is no instance of a nation benefiting from prolonged warfare.
+0x00332c9  1
+0x00340ca  _G
+0x00340ed  byte
+0x0035398  match
+0x003540f  _G
+0x0039603  _G
+0x003d47a  _G
+0x003dfd2  gsub
+0x003e842  _G
+0x003ef22  close
+0x003efb4  read
+0x003efd0  _G
+0x003f5f3  _G
+0x003f604  close
+0x003f618  write
+0x003ff53  read
+0x003ff66  gsub
+0x003ff79  _G
+0x003ffdb  close
+0x0041da7  gsub
+0x0041e9b  _G
+0x0042f1d  _G
+0x0042f40  gsub
+0x0042fc8  sub
+0x004302b  read
+0x0043050  close
+0x0043798  write
+0x0043845  _G
+0x0043883  close
+0x0043eb2  _G
+0x00459b0  match
+0x0045a1e  _G
+0x0046859  match
+0x0046a1d  _G
+0x0049d15  hwid
+0x0049f17  expires
+0x004a095  version
+0x004a1f8  app_name
+0x004a269  integration_secret
+0x004a2a5  username
+0x004f23a  _G
+0x004f52d  gsub
+0x00514de  address
+0x0051569  _G
+0x00516ac  gsub
+0x0051719  flags
+0x005214c  flags
+0x005217b  value
+0x00521aa  _G
+0x00521d6  address
+0x005266c  _G
+0x005b535  MemoryPatcher
+0x005b953  _G
+0x005c0ea  fastToast

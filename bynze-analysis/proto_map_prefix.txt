@@ -1,0 +1,72 @@
+version=0x52 format=0 endian=1 int=4 size_t=4 instr=4 num=8 integral=0 luac_data_ok=True
+[@0x21] code n = 9
+[@0x49] k n = 5
+[@0xa5] p n = 1
+  [@0xb4] code n = 27633
+  [@0x1b07c] k n = 158
+  [@0x1b65d] k: field said 158, actually 160
+  [@0x1b661] p n = 28
+    [@0x1b670] code n = 760
+    [@0x1c254] k n = 31
+    [@0x1c388] k: field said 31, actually 37
+    [@0x1c38c] p n = 0
+    [@0x1c390] lineinfo n = 0
+    [@0x1c394] locvars n = 0
+    [@0x1c398] upvals n = 0
+    [@0x1c398] proto end
+    [@0x1c3a7] code n = 33
+    [@0x1c42f] k n = 1
+    [@0x1c444] k: field said 1, actually 13
+    [@0x1c448] p n = 0
+    [@0x1c44c] lineinfo n = 0
+    [@0x1c450] locvars n = 0
+    [@0x1c454] upvals n = 0
+    [@0x1c454] proto end
+    [@0x1c463] code n = 116
+    [@0x1c637] k n = 12
+    [@0x1c6b0] k: field said 12, actually 18
+    [@0x1c6b4] p n = 0
+    [@0x1c6b8] lineinfo n = 0
+    [@0x1c6bc] locvars n = 0
+    [@0x1c6c0] upvals n = 0
+    [@0x1c6c0] proto end
+    [@0x1c6cf] code n = 256
+    [@0x1cad3] k n = 16
+    [@0x1cb68] k: field said 16, actually 22
+    [@0x1cb6c] p n = 0
+    [@0x1cb70] lineinfo n = 0
+    [@0x1cb74] locvars n = 0
+    [@0x1cb78] upvals n = 0
+    [@0x1cb78] proto end
+    [@0x1cb87] code n = 302
+    [@0x1d043] k n = 20
+    [@0x1d0fd] k: field said 20, actually 26
+    [@0x1d101] p n = 0
+    [@0x1d105] lineinfo n = 0
+    [@0x1d109] locvars n = 0
+    [@0x1d10d] upvals n = 0
+    [@0x1d10d] proto end
+    [@0x1d11c] code n = 442
+    [@0x1d808] k n = 26
+    [@0x1d8f7] k: field said 26, actually 32
+    [@0x1d8fb] p n = 0
+    [@0x1d8ff] lineinfo n = 0
+    [@0x1d903] locvars n = 0
+    [@0x1d907] upvals n = 0
+    [@0x1d907] proto end
+    [@0x1d916] code n = 352
+    [@0x1de9a] k n = 18
+    [@0x1df49] k: field said 18, actually 24
+    [@0x1df4d] p n = 0
+    [@0x1df51] lineinfo n = 0
+    [@0x1df55] locvars n = 0
+    [@0x1df59] upvals n = 0
+    [@0x1df59] proto end
+    [@0x1df68] code n = 1906
+    [@0x1fd34] k n = 58
+    [@0x1ff43] k: field said 58, actually 62
+    [@0x1ff47] p n = 8
+      [@0x1ff56] code n = 17891600
+PARSE STOPPED: absurd code count 17891600 at depth 3
+consumed 130902 of 377537 bytes; wrote 130979 bytes to /dev/null
+WARNING: trailing 246635 bytes
