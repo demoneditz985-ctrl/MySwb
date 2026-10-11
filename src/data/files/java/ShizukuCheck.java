@@ -3,6 +3,7 @@ package com.shadow.injector;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.View;
 import android.widget.Toast;
 
 import java.io.File;
@@ -70,7 +71,13 @@ public class ShizukuCheck {
         }).start();
     }
 
-    /** Shows "Shizuku is running" / "Shizuku isn't running" as a toast. */
+    /**
+     * Shows "Shizuku is running" / "Shizuku isn't running" as a toast.
+     * <p>
+     * IMPORTANT: when calling this from a click listener use
+     * <code>ShizukuCheck.showStatus(MainActivity.this)</code> - plain
+     * <code>this</code> inside an OnClickListener is the listener, not the Activity.
+     */
     public static void showStatus(final Context context) {
         if (context == null) {
             return;
@@ -81,6 +88,11 @@ public class ShizukuCheck {
                 show(context, running ? "Shizuku is running" : "Shizuku isn't running");
             }
         });
+    }
+
+    /** Convenience overload: pass any view of the current screen. */
+    public static void showStatus(View view) {
+        showStatus(AndroidHelper.getContext(view));
     }
 
     public static void show(final Context context, final String message) {

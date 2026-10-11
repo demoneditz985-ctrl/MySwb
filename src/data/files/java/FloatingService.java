@@ -75,7 +75,13 @@ public class FloatingService extends Service {
         }
     }
 
-    /** Opens the system "Display over other apps" page for this package. */
+    /**
+     * Opens the system "Display over other apps" page for this package.
+     * <p>
+     * IMPORTANT: from a click listener call
+     * <code>FloatingService.requestOverlayPermission(MainActivity.this)</code> -
+     * plain <code>this</code> inside an OnClickListener is the listener, not the Activity.
+     */
     public static void requestOverlayPermission(Activity activity) {
         if (activity == null) {
             return;
@@ -90,7 +96,17 @@ public class FloatingService extends Service {
         }
     }
 
-    /** Starts the floating icon. Does nothing when the overlay permission is missing. */
+    /** Convenience overload: pass any view of the current screen. */
+    public static void requestOverlayPermission(View view) {
+        requestOverlayPermission(AndroidHelper.getActivity(view));
+    }
+
+    /**
+     * Starts the floating icon. Does nothing when the overlay permission is missing.
+     * <p>
+     * IMPORTANT: from a click listener call
+     * <code>FloatingService.start(MainActivity.this)</code>.
+     */
     public static void start(Context context) {
         if (context == null || !canDrawOverlays(context)) {
             return;
@@ -110,6 +126,11 @@ public class FloatingService extends Service {
         }
     }
 
+    /** Convenience overload: pass any view of the current screen. */
+    public static void start(View view) {
+        start(AndroidHelper.getContext(view));
+    }
+
     /** Stops the floating icon completely. */
     public static void stop(Context context) {
         if (context == null) {
@@ -119,6 +140,16 @@ public class FloatingService extends Service {
             context.stopService(new Intent(context, FloatingService.class));
         } catch (Throwable ignored) {
         }
+    }
+
+    /** Convenience overload: pass any view of the current screen. */
+    public static void stop(View view) {
+        stop(AndroidHelper.getContext(view));
+    }
+
+    /** Convenience overload: pass any view of the current screen. */
+    public static boolean canDrawOverlays(View view) {
+        return canDrawOverlays(AndroidHelper.getContext(view));
     }
 
     /* ------------------------------------------------------------------ */

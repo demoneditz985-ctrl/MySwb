@@ -3,7 +3,8 @@
 A ready-to-import SketchWare Pro project: anime-styled dark UI, animated background,
 login screen, injector panel, floating overlay menu with Shizuku status.
 
-**Deliverable:** `dist/Shadow Injector v1.0 (com.shadow.injector, 1).swb`
+**Deliverable:** `dist/Shadow Injector v1.1 (com.shadow.injector, 2).swb`  
+Simple-named copy for downloading: `dist/ShadowInjector_v1.1.swb`
 
 Zero external libraries, zero local libs — it imports and builds with a stock
 SketchWare Pro install.
@@ -12,7 +13,7 @@ SketchWare Pro install.
 
 ## 1. Install on your phone
 
-1. Copy `dist/Shadow Injector v1.0 (com.shadow.injector, 1).swb` to your phone.
+1. Copy `dist/ShadowInjector_v1.1.swb` to your phone.
 2. SketchWare Pro → **My Projects** → ⋮ (top right) → **Restore from backup** /
    **Import project** → pick the `.swb`.
 3. Open **Shadow Injector** → press the **run** button to build the APK.
@@ -24,9 +25,22 @@ button asks for it (the app opens the right settings page for you).
 
 ## 2. What the app does
 
+### First launch — update popup
+Shown once on the very first app open (`UpdateDialog`):
+
+* **JOIN CHANNEL** → opens the Telegram invite
+* **CLOSE** → dismiss and continue into the app
+* **EXIT** → closes the app
+* **Do not show again** checkbox → remembered in SharedPreferences
+
+Telegram link: `https://t.me/+BBimnHMiSvpiYTBl`
+(change `TELEGRAM_URL` at the top of `src/data/files/java/UpdateDialog.java`)
+
 ### Screen 1 — `MainActivity` (login)
 Anime logo, `USERNAME` / `PASSWORD` fields (password is masked), `LOGIN` button.
 Wrong input shows a red message + toast.
+
+Also has a **"Join Telegram for updates"** pill at the bottom.
 
 **Default credentials: `admin` / `1234`**
 Change them in `build/build.py` (`LOGIN_USER`, `LOGIN_PASS`) and rebuild — or
@@ -42,6 +56,7 @@ SketchWare.
   overlay (asks for the overlay permission first if it's missing) and toasts the
   Shizuku status
 * `STOP OVERLAY` → removes the floating icon
+* `JOIN TELEGRAM FOR UPDATES` → opens the channel
 
 ### Floating overlay (`FloatingService`)
 * Draggable floating icon, tap it (a tap, not a drag) to expand the menu
@@ -102,6 +117,8 @@ src/
       AnimeBackground.java      <- Canvas particle + sakura background animation
       FloatingService.java      <- overlay Service (drag, menu, Shizuku row)
       ShizukuCheck.java         <- dependency-free Shizuku detection
+      UpdateDialog.java         <- first-launch Telegram popup
+      AndroidHelper.java        <- View -> Activity/Context resolution
   data/files/resource/layout/floating.xml
   data/files/resource/drawable/*.xml
   data/Injection/androidmanifest/app_components.txt   <- declares the Service
@@ -117,6 +134,19 @@ python3 build/verify_logic.py /tmp/logic     # optional sanity check
 ```
 
 ---
+
+## 4b. Gotcha: never use `this` inside a click listener
+
+Blocks run inside an anonymous `View.OnClickListener`, so `this` is the
+**listener**, not the Activity — that produces:
+
+    The method start(Context) is not applicable for the arguments
+    (new View.OnClickListener(){})
+
+Always write `MainActivity.this` / `InjectorActivity.this` in
+**add source directly** blocks that are inside an onClick event.
+`onCreate` blocks are fine with `this`, but `<Activity>.this` is used there too
+for consistency.
 
 ## 5. How the `.swb` is put together
 
@@ -142,6 +172,7 @@ and `project` → `.sketchware/mysc/list/<sc_id>/project`.
 
 ## 6. Notes
 
+* v1.1 — compile fixes, new neon button styles, Telegram link + first-launch popup
 * `minSdk 21`, `targetSdk 33` (33 keeps the foreground-service overlay simple).
 * Permissions: `INTERNET`, `SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`,
   `POST_NOTIFICATIONS`, `WAKE_LOCK`.

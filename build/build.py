@@ -49,13 +49,16 @@ KEY = b"sketchwaresecure"
 PKG = "com.shadow.injector"
 APP_NAME = "Shadow Injector"
 WS_NAME = "shadow_injector"
-VER_NAME = "1.0"
-VER_CODE = "1"
+VER_NAME = "1.1"
+VER_CODE = "2"
 SC_ID = "600"
 
 # credentials checked on the login screen (edit these!)
 LOGIN_USER = "admin"
 LOGIN_PASS = "1234"
+
+# Telegram channel shown in the first-launch dialog and the buttons
+TELEGRAM_URL = "https://t.me/+BBimnHMiSvpiYTBl"
 
 # --------------------------------------------------------------------------
 # helpers
@@ -402,6 +405,13 @@ def main_views():
                   layout(width=-2, height=-2, layoutGravity=1, marginTop=22),
                   text(text="v%s  -  Shadow Injector" % VER_NAME, textSize=10,
                        textColor=C_FAINT)))
+    v.append(bean("tv_telegram", T_TEXTVIEW, "TextView", "linear_content", 8,
+                  layout(width=-2, height=-2, layoutGravity=1, marginTop=14,
+                         paddingLeft=14, paddingRight=14,
+                         paddingTop=8, paddingBottom=8,
+                         backgroundResource="btn_ghost"),
+                  text(text="Join Telegram for updates", textSize=11, textType=1,
+                       textColor=C_CYAN)))
     return v
 
 
@@ -484,6 +494,11 @@ def injector_views():
                   layout(width=-2, height=-2, layoutGravity=1, marginTop=20),
                   text(text="Tip: drag the floating icon to move it",
                        textSize=10, textColor=C_FAINT)))
+    v.append(bean("btn_telegram", T_BUTTON, "Button", "linear_content", 4,
+                  layout(width=-1, height=46, marginTop=14,
+                         backgroundResource="btn_ghost"),
+                  text(text="JOIN TELEGRAM FOR UPDATES", textSize=12,
+                       textType=1, textColor=C_CYAN)))
     return v
 
 
@@ -503,14 +518,27 @@ def build_view_file():
 # block logic
 # --------------------------------------------------------------------------
 
-ATTACH_BG = (
-    'if (android.os.Build.VERSION.SDK_INT >= 21) { '
-    'getWindow().setStatusBarColor(0xff0a0616); '
-    'getWindow().setNavigationBarColor(0xff07050e); } '
-    '((android.widget.RelativeLayout) findViewById(R.id.rel_root)).addView('
-    'new AnimeBackground(this), 0, '
-    'new android.widget.RelativeLayout.LayoutParams(-1, -1));'
-)
+def attach_bg(activity):
+    """Attaches the animated background behind the layout of <activity>."""
+    return (
+        'if (android.os.Build.VERSION.SDK_INT >= 21) { '
+        'getWindow().setStatusBarColor(0xff0a0616); '
+        'getWindow().setNavigationBarColor(0xff07050e); } '
+        '((android.widget.RelativeLayout) findViewById(R.id.rel_root)).addView('
+        'new AnimeBackground(%s.this), 0, '
+        'new android.widget.RelativeLayout.LayoutParams(-1, -1));' % activity
+    )
+
+
+# NOTE: never emit plain "this" from a click listener - inside an
+# OnClickListener "this" is the listener, not the Activity (that was the cause of
+# the "not applicable for the arguments (new View.OnClickListener(){})" errors).
+def update_popup(activity):
+    return 'UpdateDialog.showIfNeeded(%s.this);' % activity
+
+
+def open_telegram(activity):
+    return 'UpdateDialog.openTelegram(%s.this);' % activity
 
 CHECK_SHIZUKU = (
     'ShizukuCheck.checkAsync(new ShizukuCheck.Callback() { '
@@ -526,9 +554,10 @@ CHECK_SHIZUKU = (
 def main_activity_logic():
     """Login screen logic."""
     # ---- onCreate --------------------------------------------------------
-    on_create = []
-    attach = b_raw(ATTACH_BG)
-    on_create.append(attach)
+    attach = b_raw(attach_bg("MainActivity"))
+    popup = b_raw(update_popup("MainActivity"))
+    attach["nextBlock"] = int(popup["id"])
+    on_create = [attach, popup]
 
     # ---- btn_login onClick ----------------------------------------------
     blocks = []
@@ -543,7 +572,7 @@ def main_activity_logic():
     toast_ok = b_toast("Welcome back")
     set_screen = b_set_screen("InjectorActivity")
     put_extra = b_put_extra("user", ref(user_get))
-    shizuku = b_raw("ShizukuCheck.showStatus(this);")
+    shizuku = b_raw("ShizukuCheck.showStatus(MainActivity.this);")
     start = b_start_activity()
     finish = b_finish()
     msg_ok["nextBlock"] = int(toast_ok["id"])
@@ -566,6 +595,9 @@ def main_activity_logic():
     inner_if = b_if_else(ref(pass_eq), int(msg_ok["id"]), int(msg_bad_pass["id"]))
     outer_if = b_if_else(ref(user_eq), int(inner_if["id"]), int(msg_bad_user["id"]))
 
+    # ---- tv_telegram onClick ---------------------------------------------
+    telegram_blocks = [b_raw(open_telegram("MainActivity"))]
+
     blocks = [outer_if, user_eq, user_get,
               inner_if, pass_eq, pass_get,
               msg_ok, toast_ok, set_screen, put_extra, shizuku, start, finish,
@@ -582,17 +614,20 @@ def main_activity_logic():
              "targetId": "onCreate", "targetType": 0},
             {"eventName": "onClick", "eventType": 1,
              "targetId": "btn_login", "targetType": 3},
+            {"eventName": "onClick", "eventType": 1,
+             "targetId": "tv_telegram", "targetType": 3},
         ],
         "sections": {
             "onCreate_initializeLogic": on_create,
             "btn_login_onClick": blocks,
+            "tv_telegram_onClick": telegram_blocks,
         },
     }
 
 
 def injector_activity_logic():
     # ---- onCreate --------------------------------------------------------
-    attach = b_raw(ATTACH_BG)
+    attach = b_raw(attach_bg("InjectorActivity"))
     greet = b_raw(
         'String _shadowUser = getIntent().getStringExtra("user"); '
         'if (_shadowUser != null && _shadowUser.length() > 0) { '
@@ -605,14 +640,15 @@ def injector_activity_logic():
     check = [b_raw(CHECK_SHIZUKU)]
 
     # ---- btn_inject onClick ---------------------------------------------
-    can_draw = b_raw_b("FloatingService.canDrawOverlays(this)")
-    launch = b_raw("FloatingService.start(this);")
+    can_draw = b_raw_b("FloatingService.canDrawOverlays(InjectorActivity.this)")
+    launch = b_raw("FloatingService.start(InjectorActivity.this);")
     toast_launch = b_toast("Floating menu launched")
-    shizuku = b_raw("ShizukuCheck.showStatus(this);")
+    shizuku = b_raw("ShizukuCheck.showStatus(InjectorActivity.this);")
     launch["nextBlock"] = int(toast_launch["id"])
     toast_launch["nextBlock"] = int(shizuku["id"])
 
-    ask_perm = b_raw("FloatingService.requestOverlayPermission(this);")
+    ask_perm = b_raw(
+        "FloatingService.requestOverlayPermission(InjectorActivity.this);")
     toast_perm = b_toast("Allow display over other apps to use the menu")
     ask_perm["nextBlock"] = int(toast_perm["id"])
 
@@ -621,10 +657,13 @@ def injector_activity_logic():
               ask_perm, toast_perm]
 
     # ---- btn_stop onClick ------------------------------------------------
-    stop = b_raw("FloatingService.stop(this);")
+    stop = b_raw("FloatingService.stop(InjectorActivity.this);")
     toast_stop = b_toast("Overlay stopped")
     stop["nextBlock"] = int(toast_stop["id"])
     stop_blocks = [stop, toast_stop]
+
+    # ---- btn_telegram onClick --------------------------------------------
+    telegram = [b_raw(open_telegram("InjectorActivity"))]
 
     return {
         "var": [],
@@ -639,12 +678,15 @@ def injector_activity_logic():
              "targetId": "btn_inject", "targetType": 3},
             {"eventName": "onClick", "eventType": 1,
              "targetId": "btn_stop", "targetType": 3},
+            {"eventName": "onClick", "eventType": 1,
+             "targetId": "btn_telegram", "targetType": 3},
         ],
         "sections": {
             "onCreate_initializeLogic": on_create,
             "btn_check_onClick": check,
             "btn_inject_onClick": inject,
             "btn_stop_onClick": stop_blocks,
+            "btn_telegram_onClick": telegram,
         },
     }
 
