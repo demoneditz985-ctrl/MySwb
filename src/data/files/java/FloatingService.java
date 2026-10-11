@@ -7,17 +7,18 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.PixelFormat;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.provider.Settings;
+import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -25,9 +26,18 @@ import android.widget.Toast;
 /**
  * Floating overlay menu for Shadow Injector.
  *
- *   - a draggable floating icon is shown as soon as the service starts
- *   - tapping the icon expands a menu with: CLOSE, HIDE, BUTTON 1..4
- *   - the Shizuku status row refreshes and toasts the result when tapped
+ * <ul>
+ *   <li>A floating icon is shown as soon as the service starts.</li>
+ *   <li>Tapping the icon expands the menu; tapping again is not needed because
+ *       the menu has its own HIDE button.</li>
+ *   <li><b>Both the icon and the expanded menu can be dragged anywhere on the
+ *       screen</b> - drag the icon itself, or drag the menu by its title bar,
+ *       by any empty part of the panel, or by starting the drag on any button
+ *       (a press that does not move still counts as a tap).</li>
+ *   <li>BUTTON 1..4 are ON/OFF toggles; the whole row changes colour with the
+ *       state, and the state is remembered.</li>
+ *   <li>The Shizuku status row refreshes when tapped.</li>
+ * </ul>
  *
  * Declared in the manifest through
  * /Internal storage/.sketchware/data/&lt;sc_id&gt;/Injection/androidmanifest/app_components.txt
@@ -36,6 +46,11 @@ public class FloatingService extends Service {
 
     private static final String CHANNEL_ID = "shadow_injector_overlay";
     private static final int NOTIFICATION_ID = 1017;
+    private static final String PREFS = "shadow_prefs";
+    private static final String PREF_TOGGLE = "toggle_";
+
+    /** Movement (px) after which a press becomes a drag instead of a tap. */
+    private static final float TOUCH_SLOP = 8f;
 
     private WindowManager windowManager;
     private View rootView;
@@ -45,12 +60,17 @@ public class FloatingService extends Service {
     private LinearLayout panel;
     private TextView statusText;
 
+    private final boolean[] toggles = new boolean[4];
+    private final View[] rows = new View[4];
+    private final TextView[] rowLabels = new TextView[4];
+    private final TextView[] rowStates = new TextView[4];
+
+    /* drag state - shared by every draggable view */
     private float touchStartX;
     private float touchStartY;
     private int paramsStartX;
     private int paramsStartY;
-    private long touchStartTime;
-    private boolean dragged;
+    private boolean dragging;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -191,8 +211,9 @@ public class FloatingService extends Service {
         }
 
         bindViews();
+        loadToggles();
         wireActions();
-        refreshShizukuStatus();
+        refreshShizukuStatus(false);
     }
 
     @Override
@@ -213,46 +234,139 @@ public class FloatingService extends Service {
         iconHolder = (LinearLayout) rootView.findViewById(R.id.icon_holder);
         panel = (LinearLayout) rootView.findViewById(R.id.panel);
         statusText = (TextView) rootView.findViewById(R.id.txt_status);
+
+        int[] rowIds = {R.id.btn1, R.id.btn2, R.id.btn3, R.id.btn4};
+        int[] labelIds = {R.id.lbl1, R.id.lbl2, R.id.lbl3, R.id.lbl4};
+        int[] stateIds = {R.id.state1, R.id.state2, R.id.state3, R.id.state4};
+        for (int i = 0; i < 4; i++) {
+            rows[i] = rootView.findViewById(rowIds[i]);
+            rowLabels[i] = (TextView) rootView.findViewById(labelIds[i]);
+            rowStates[i] = (TextView) rootView.findViewById(stateIds[i]);
+        }
     }
+
+    /* ------------------------------------------------------------------ */
+    /*  Dragging - the same listener is attached to the icon, the whole    */
+    /*  panel and every panel child, so the overlay follows your finger    */
+    /*  no matter where you grab it.                                       */
+    /* ------------------------------------------------------------------ */
+
+    private final View.OnTouchListener DRAG = new View.OnTouchListener() {
+        @Override
+        public boolean onTouch(View v, MotionEvent event) {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    touchStartX = event.getRawX();
+                    touchStartY = event.getRawY();
+                    paramsStartX = params.x;
+                    paramsStartY = params.y;
+                    dragging = false;
+                    // Return false so children (buttons) can still take the
+                    // press and turn it into a click.
+                    return false;
+
+                case MotionEvent.ACTION_MOVE: {
+                    float dx = event.getRawX() - touchStartX;
+                    float dy = event.getRawY() - touchStartY;
+                    if (!dragging && (Math.abs(dx) > TOUCH_SLOP || Math.abs(dy) > TOUCH_SLOP)) {
+                        dragging = true;
+                    }
+                    if (dragging) {
+                        params.x = paramsStartX + (int) dx;
+                        params.y = paramsStartY + (int) dy;
+                        clampToScreen();
+                        updateLayout();
+                        return true;
+                    }
+                    return false;
+                }
+
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL: {
+                    boolean wasDragging = dragging;
+                    dragging = false;
+                    // Swallow the event when we actually dragged, otherwise the
+                    // button under the finger would also fire its click.
+                    return wasDragging;
+                }
+
+                default:
+                    return false;
+            }
+        }
+    };
+
+    private void makeDraggable(View view) {
+        if (view != null) {
+            view.setOnTouchListener(DRAG);
+        }
+    }
+
+    private void clampToScreen() {
+        if (windowManager == null) {
+            return;
+        }
+        try {
+            DisplayMetrics metrics = new DisplayMetrics();
+            windowManager.getDefaultDisplay().getMetrics(metrics);
+            int w = rootView != null ? rootView.getWidth() : 0;
+            int h = rootView != null ? rootView.getHeight() : 0;
+            if (w == 0) {
+                w = (int) (64 * getResources().getDisplayMetrics().density);
+            }
+            if (h == 0) {
+                h = w;
+            }
+            // let a third of the bubble hang off each edge, never lose it
+            int minX = -w / 3;
+            int maxX = metrics.widthPixels - w + w / 3;
+            int minY = 0;
+            int maxY = metrics.heightPixels - h / 3;
+            if (params.x < minX) {
+                params.x = minX;
+            }
+            if (params.x > maxX) {
+                params.x = maxX;
+            }
+            if (params.y < minY) {
+                params.y = minY;
+            }
+            if (params.y > maxY) {
+                params.y = maxY;
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private void updateLayout() {
+        if (windowManager == null || rootView == null) {
+            return;
+        }
+        try {
+            windowManager.updateViewLayout(rootView, params);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Wiring                                                             */
+    /* ------------------------------------------------------------------ */
 
     private void wireActions() {
         if (iconHolder != null) {
-            iconHolder.setOnTouchListener(new View.OnTouchListener() {
+            makeDraggable(iconHolder);
+            iconHolder.setClickable(true);
+            iconHolder.setOnClickListener(new View.OnClickListener() {
                 @Override
-                public boolean onTouch(View v, MotionEvent event) {
-                    switch (event.getAction()) {
-                        case MotionEvent.ACTION_DOWN:
-                            touchStartX = event.getRawX();
-                            touchStartY = event.getRawY();
-                            paramsStartX = params.x;
-                            paramsStartY = params.y;
-                            touchStartTime = System.currentTimeMillis();
-                            dragged = false;
-                            return true;
-
-                        case MotionEvent.ACTION_MOVE:
-                            float dx = event.getRawX() - touchStartX;
-                            float dy = event.getRawY() - touchStartY;
-                            if (Math.abs(dx) > 6f || Math.abs(dy) > 6f) {
-                                dragged = true;
-                            }
-                            params.x = paramsStartX + (int) dx;
-                            params.y = paramsStartY + (int) dy;
-                            updateLayout();
-                            return true;
-
-                        case MotionEvent.ACTION_UP:
-                            boolean quick = (System.currentTimeMillis() - touchStartTime) < 260L;
-                            if (!dragged && quick) {
-                                toggleMenu();
-                            }
-                            return true;
-
-                        default:
-                            return false;
-                    }
+                public void onClick(View v) {
+                    expand();
                 }
             });
+        }
+
+        if (panel != null) {
+            // dragging anywhere on the panel itself (title bar, gaps, hint text)
+            makeDraggable(panel);
         }
 
         setClick(R.id.btn_hide, new Runnable() {
@@ -273,23 +387,62 @@ public class FloatingService extends Service {
         setClick(R.id.txt_status, new Runnable() {
             @Override
             public void run() {
-                refreshShizukuStatus();
+                toast("Checking Shizuku...");
+                refreshShizukuStatus(true);
             }
         });
 
-        wireMenuButton(R.id.btn1, "BUTTON 1");
-        wireMenuButton(R.id.btn2, "BUTTON 2");
-        wireMenuButton(R.id.btn3, "BUTTON 3");
-        wireMenuButton(R.id.btn4, "BUTTON 4");
+        for (int i = 0; i < 4; i++) {
+            wireToggle(i);
+        }
     }
 
-    private void wireMenuButton(int id, final String label) {
-        setClick(id, new Runnable() {
+    private void wireToggle(final int index) {
+        if (rows[index] == null) {
+            return;
+        }
+        // also draggable: press and slide on a button moves the whole menu
+        makeDraggable(rows[index]);
+        rows[index].setOnClickListener(new View.OnClickListener() {
             @Override
-            public void run() {
-                toast(label + " activated");
+            public void onClick(View v) {
+                toggles[index] = !toggles[index];
+                applyToggle(index);
+                saveToggle(index);
+                toast((toggles[index] ? "BUTTON " : "BUTTON ") + (index + 1)
+                        + (toggles[index] ? "  ON" : "  OFF"));
             }
         });
+        applyToggle(index);
+    }
+
+    private void applyToggle(int index) {
+        boolean on = toggles[index];
+        if (rows[index] != null) {
+            rows[index].setBackgroundResource(on ? R.drawable.toggle_on : R.drawable.toggle_off);
+        }
+        if (rowStates[index] != null) {
+            rowStates[index].setText(on ? "ON" : "OFF");
+            rowStates[index].setTextColor(on ? 0xFF052E26 : 0xFF7C6FA8);
+        }
+        if (rowLabels[index] != null) {
+            rowLabels[index].setTextColor(on ? 0xFF052E26 : 0xFFC9BEE8);
+        }
+    }
+
+    private void loadToggles() {
+        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        for (int i = 0; i < 4; i++) {
+            toggles[i] = prefs.getBoolean(PREF_TOGGLE + (i + 1), false);
+        }
+    }
+
+    private void saveToggle(int index) {
+        try {
+            SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+            prefs.edit().putBoolean(PREF_TOGGLE + (index + 1), toggles[index]).apply();
+        } catch (Throwable ignored) {
+        }
     }
 
     private void setClick(int id, final Runnable action) {
@@ -300,6 +453,9 @@ public class FloatingService extends Service {
         if (view == null) {
             return;
         }
+        if (id == R.id.txt_status) {
+            makeDraggable(view);
+        }
         view.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -308,17 +464,13 @@ public class FloatingService extends Service {
         });
     }
 
-    private void toggleMenu() {
+    private void expand() {
         if (iconHolder == null || panel == null) {
             return;
         }
-        if (panel.getVisibility() == View.VISIBLE) {
-            collapse();
-        } else {
-            iconHolder.setVisibility(View.GONE);
-            panel.setVisibility(View.VISIBLE);
-            refreshShizukuStatus();
-        }
+        iconHolder.setVisibility(View.GONE);
+        panel.setVisibility(View.VISIBLE);
+        refreshShizukuStatus(false);
     }
 
     private void collapse() {
@@ -330,7 +482,7 @@ public class FloatingService extends Service {
         }
     }
 
-    private void refreshShizukuStatus() {
+    private void refreshShizukuStatus(final boolean announce) {
         ShizukuCheck.checkAsync(new ShizukuCheck.Callback() {
             @Override
             public void onResult(boolean running) {
@@ -338,7 +490,9 @@ public class FloatingService extends Service {
                     statusText.setText("SHIZUKU: " + (running ? "RUNNING" : "NOT RUNNING"));
                     statusText.setTextColor(ShizukuCheck.getStatusColor(running));
                 }
-                toast(ShizukuCheck.getStatusText(running));
+                if (announce) {
+                    toast(ShizukuCheck.getStatusText(running));
+                }
             }
         });
     }
@@ -346,16 +500,6 @@ public class FloatingService extends Service {
     private void toast(String message) {
         try {
             Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
-        } catch (Throwable ignored) {
-        }
-    }
-
-    private void updateLayout() {
-        if (windowManager == null || rootView == null) {
-            return;
-        }
-        try {
-            windowManager.updateViewLayout(rootView, params);
         } catch (Throwable ignored) {
         }
     }

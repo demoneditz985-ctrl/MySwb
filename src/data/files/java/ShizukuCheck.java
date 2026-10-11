@@ -1,67 +1,120 @@
 package com.shadow.injector;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.widget.Toast;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import rikka.shizuku.Shizuku;
 
 /**
- * Tiny, dependency free helper that reports whether Shizuku is currently running.
+ * Shizuku status + permission helper for Shadow Injector.
  *
- * No Shizuku API library is required - the check is done with:
- *   1. a scan of /proc/&lt;pid&gt;/cmdline   (works without any permission)
- *   2. shell fallbacks: pidof / ps -A / ps
+ * <p>The detection is done through the <b>real Shizuku API</b>
+ * ({@code rikka.shizuku.Shizuku}, bundled in this project) instead of scanning
+ * {@code /proc}. That matters, because a /proc scan reports "running" whenever
+ * the Shizuku <i>manager</i> process merely exists - including when the manager
+ * has been opened but the server was never started, and when the process is only
+ * sitting cached in the background. That was the source of the false
+ * "Shizuku is running" reports.</p>
+ *
+ * <p>{@link Shizuku#pingBinder()} is authoritative: the binder is only alive
+ * while the Shizuku <b>server</b> is actually up, and it dies the moment the
+ * server stops.</p>
+ *
+ * <p>The app shows up in Shizuku Manager's "authorized applications" list
+ * because the manifest declares
+ * {@code moe.shizuku.manager.permission.API_V23} and registers
+ * {@code rikka.shizuku.ShizukuProvider} - see
+ * {@code data/Injection/androidmanifest/app_components.txt}.</p>
  *
  * Usage from an Activity:
  * <pre>
- *     ShizukuCheck.showStatus(this);                  // toast the result
- *     ShizukuCheck.checkAsync(new ShizukuCheck.Callback() {
- *         public void onResult(boolean running) { ... }
- *     });
+ *     ShizukuCheck.showStatus(MainActivity.this);
+ *     ShizukuCheck.requestPermission(InjectorActivity.this);
  * </pre>
  */
 public class ShizukuCheck {
 
-    /** Package name of the Shizuku app (both the manager and the privileged API). */
+    /** Package name of the Shizuku manager / privileged API. */
     public static final String SHIZUKU_PACKAGE = "moe.shizuku.privileged.api";
 
-    /** Alternate package name used by older Shizuku builds. */
-    public static final String SHIZUKU_PACKAGE_OLD = "moe.shizuku.privileged.api";
+    /** Any request code, only used to match the result callback. */
+    public static final int REQUEST_CODE = 42317;
+
+    /**
+     * How long to wait for Shizuku to push its binder to our provider.
+     * Shizuku hands the binder to apps a moment after they start, so a check
+     * that runs too early would otherwise report a false "not running".
+     */
+    private static final long BINDER_WAIT_MS = 1500L;
+
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
+
+    private static boolean resultListenerAdded = false;
+
+    /** Last context we were handed, so late callbacks can still toast. */
+    private static volatile Context appContext;
 
     private ShizukuCheck() {
     }
 
-    /** Blocking check - call this from a background thread. */
-    public static boolean isRunning() {
-        if (scanProc()) {
-            return true;
+    /** Remembers a context for callbacks that arrive without one. */
+    public static void bind(Context context) {
+        if (context != null) {
+            appContext = context.getApplicationContext();
         }
-        if (shellContains("pidof " + SHIZUKU_PACKAGE)) {
-            return true;
-        }
-        if (shellContains("ps -A")) {
-            return true;
-        }
-        return shellContains("ps");
     }
 
-    /** Same as {@link #isRunning()} but off the main thread. */
+    /* ------------------------------------------------------------------ */
+    /*  Status                                                             */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Blocking check - call from a background thread.
+     *
+     * @return true only when the Shizuku server is really up and talking to us.
+     */
+    public static boolean isRunning() {
+        if (ping()) {
+            return true;
+        }
+        // Shizuku delivers the binder shortly after the app process starts.
+        final long deadline = System.currentTimeMillis() + BINDER_WAIT_MS;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(100L);
+            } catch (InterruptedException ignored) {
+                break;
+            }
+            if (ping()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean ping() {
+        try {
+            return Shizuku.pingBinder();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /** Off the main thread version of {@link #isRunning()}. */
     public static void checkAsync(final Callback callback) {
         if (callback == null) {
             return;
         }
-        final Handler handler = new Handler(Looper.getMainLooper());
         new Thread(new Runnable() {
             @Override
             public void run() {
                 final boolean running = isRunning();
-                handler.post(new Runnable() {
+                MAIN.post(new Runnable() {
                     @Override
                     public void run() {
                         callback.onResult(running);
@@ -71,10 +124,96 @@ public class ShizukuCheck {
         }).start();
     }
 
+    /** Is Shizuku installed at all? */
+    public static boolean isInstalled(Context context) {
+        if (context == null) {
+            return false;
+        }
+        try {
+            context.getPackageManager().getPackageInfo(SHIZUKU_PACKAGE, 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Permission                                                         */
+    /* ------------------------------------------------------------------ */
+
+    /** true when Shizuku has already granted this app the API permission. */
+    public static boolean isPermissionGranted() {
+        try {
+            return Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Asks Shizuku to grant this app access. The request is only sent when the
+     * server is up; otherwise a toast explains that Shizuku has to be started
+     * first.
+     */
+    public static void requestPermission(final Activity activity) {
+        if (activity == null) {
+            return;
+        }
+        checkAsync(new Callback() {
+            @Override
+            public void onResult(final boolean running) {
+                if (!running) {
+                    show(activity, "Shizuku isn't running");
+                    return;
+                }
+                if (isPermissionGranted()) {
+                    show(activity, "Shizuku is running");
+                    return;
+                }
+                addResultListener();
+                try {
+                    Shizuku.requestPermission(REQUEST_CODE);
+                    show(activity, "Allow Shadow Injector in the Shizuku popup");
+                } catch (Throwable t) {
+                    show(activity, "Shizuku isn't running");
+                }
+            }
+        });
+    }
+
+    private static void addResultListener() {
+        if (resultListenerAdded) {
+            return;
+        }
+        try {
+            Shizuku.addRequestPermissionResultListener(
+                    new Shizuku.OnRequestPermissionResultListener() {
+                        @Override
+                        public void onRequestPermissionResult(int requestCode, int result) {
+                            if (requestCode != REQUEST_CODE) {
+                                return;
+                            }
+                            boolean granted = result == PackageManager.PERMISSION_GRANTED;
+                            ShizukuCheck.show(null, granted
+                                    ? "Shizuku permission granted"
+                                    : "Shizuku permission denied");
+                        }
+                    });
+            resultListenerAdded = true;
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Toasts                                                             */
+    /* ------------------------------------------------------------------ */
+
     /**
      * Shows "Shizuku is running" / "Shizuku isn't running" as a toast.
      * <p>
-     * IMPORTANT: when calling this from a click listener use
+     * IMPORTANT: from a click listener call
      * <code>ShizukuCheck.showStatus(MainActivity.this)</code> - plain
      * <code>this</code> inside an OnClickListener is the listener, not the Activity.
      */
@@ -85,7 +224,7 @@ public class ShizukuCheck {
         checkAsync(new Callback() {
             @Override
             public void onResult(boolean running) {
-                show(context, running ? "Shizuku is running" : "Shizuku isn't running");
+                show(context, getStatusText(running));
             }
         });
     }
@@ -95,14 +234,31 @@ public class ShizukuCheck {
         showStatus(AndroidHelper.getContext(view));
     }
 
+    /** Convenience overload: pass any view of the current screen. */
+    public static void requestPermission(View view) {
+        requestPermission(AndroidHelper.getActivity(view));
+    }
+
     public static void show(final Context context, final String message) {
-        if (context == null || message == null) {
+        if (message == null) {
             return;
         }
-        try {
-            Toast.makeText(context.getApplicationContext(), message, Toast.LENGTH_SHORT).show();
-        } catch (Throwable ignored) {
-        }
+        MAIN.post(new Runnable() {
+            @Override
+            public void run() {
+                if (context != null) {
+                    bind(context);
+                }
+                Context target = appContext;
+                if (target == null) {
+                    return;
+                }
+                try {
+                    Toast.makeText(target, message, Toast.LENGTH_SHORT).show();
+                } catch (Throwable ignored) {
+                }
+            }
+        });
     }
 
     public static String getStatusText(boolean running) {
@@ -111,82 +267,6 @@ public class ShizukuCheck {
 
     public static int getStatusColor(boolean running) {
         return running ? 0xFF34D399 : 0xFFFF4D6D;
-    }
-
-    /* ------------------------------------------------------------------ */
-
-    private static boolean scanProc() {
-        try {
-            File proc = new File("/proc");
-            File[] dirs = proc.listFiles();
-            if (dirs == null) {
-                return false;
-            }
-            for (int i = 0; i < dirs.length; i++) {
-                if (!dirs[i].isDirectory()) {
-                    continue;
-                }
-                String cmdline = readSmallFile(new File(dirs[i], "cmdline"));
-                if (cmdline != null && cmdline.contains(SHIZUKU_PACKAGE)) {
-                    return true;
-                }
-            }
-        } catch (Throwable ignored) {
-        }
-        return false;
-    }
-
-    private static String readSmallFile(File file) {
-        FileInputStream in = null;
-        try {
-            in = new FileInputStream(file);
-            byte[] buffer = new byte[512];
-            int read = in.read(buffer);
-            if (read <= 0) {
-                return null;
-            }
-            return new String(buffer, 0, read, "UTF-8");
-        } catch (Throwable ignored) {
-            return null;
-        } finally {
-            if (in != null) {
-                try {
-                    in.close();
-                } catch (Throwable ignored) {
-                }
-            }
-        }
-    }
-
-    private static boolean shellContains(String command) {
-        Process process = null;
-        BufferedReader reader = null;
-        try {
-            process = Runtime.getRuntime().exec(new String[]{"sh", "-c", command});
-            reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.contains(SHIZUKU_PACKAGE)) {
-                    return true;
-                }
-            }
-            process.waitFor();
-        } catch (Throwable ignored) {
-        } finally {
-            if (reader != null) {
-                try {
-                    reader.close();
-                } catch (Throwable ignored) {
-                }
-            }
-            if (process != null) {
-                try {
-                    process.destroy();
-                } catch (Throwable ignored) {
-                }
-            }
-        }
-        return false;
     }
 
     public interface Callback {

@@ -49,13 +49,15 @@ KEY = b"sketchwaresecure"
 PKG = "com.shadow.injector"
 APP_NAME = "Shadow Injector"
 WS_NAME = "shadow_injector"
-VER_NAME = "1.1"
-VER_CODE = "2"
+VER_NAME = "1.2"
+VER_CODE = "3"
 SC_ID = "600"
 
-# credentials checked on the login screen (edit these!)
-LOGIN_USER = "admin"
-LOGIN_PASS = "1234"
+# The username/password are NOT stored in the project. They live as a salted,
+# iterated SHA-256 digest inside src/data/files/java/AuthCore.java, so nothing
+# readable ends up in the DEX. Default: admin / 1234.
+# To change them:
+#     python3 build/make_auth.py <newuser> <newpassword>
 
 # Telegram channel shown in the first-launch dialog and the buttons
 TELEGRAM_URL = "https://t.me/+BBimnHMiSvpiYTBl"
@@ -394,18 +396,14 @@ def main_views():
                          backgroundResource="btn_primary"),
                   text(text="L O G I N", textSize=15, textType=1,
                        textColor=C_DARK)))
-    v.append(bean("tv_hint", T_TEXTVIEW, "TextView", "linear_content", 5,
-                  layout(width=-2, height=-2, layoutGravity=1, marginTop=12),
-                  text(text="Default login - %s / %s" % (LOGIN_USER, LOGIN_PASS),
-                       textSize=10, textColor=C_MUTED)))
-    v.append(bean("tv_msg", T_TEXTVIEW, "TextView", "linear_content", 6,
+    v.append(bean("tv_msg", T_TEXTVIEW, "TextView", "linear_content", 5,
                   layout(width=-2, height=-2, layoutGravity=1, marginTop=10),
                   text(text="", textSize=12, textType=1, textColor=C_DANGER)))
-    v.append(bean("tv_footer", T_TEXTVIEW, "TextView", "linear_content", 7,
+    v.append(bean("tv_footer", T_TEXTVIEW, "TextView", "linear_content", 6,
                   layout(width=-2, height=-2, layoutGravity=1, marginTop=22),
                   text(text="v%s  -  Shadow Injector" % VER_NAME, textSize=10,
                        textColor=C_FAINT)))
-    v.append(bean("tv_telegram", T_TEXTVIEW, "TextView", "linear_content", 8,
+    v.append(bean("tv_telegram", T_TEXTVIEW, "TextView", "linear_content", 7,
                   layout(width=-2, height=-2, layoutGravity=1, marginTop=14,
                          paddingLeft=14, paddingRight=14,
                          paddingTop=8, paddingBottom=8,
@@ -464,6 +462,11 @@ def injector_views():
                          backgroundResource="btn_ghost"),
                   text(text="CHECK SHIZUKU", textSize=12, textType=1,
                        textColor=C_TEXT)))
+    v.append(bean("btn_shizuku_perm", T_BUTTON, "Button", "card_shizuku", 3,
+                  layout(width=-1, height=44, marginTop=10,
+                         backgroundResource="btn_ghost"),
+                  text(text="GRANT SHIZUKU ACCESS", textSize=12, textType=1,
+                       textColor=C_CYAN)))
 
     # --- injector card ----------------------------------------------------
     v.append(bean("card_inject", T_LINEAR, "LinearLayout", "linear_content", 2,
@@ -491,8 +494,10 @@ def injector_views():
                        textColor=C_DANGER)))
 
     v.append(bean("tv_tip", T_TEXTVIEW, "TextView", "linear_content", 3,
-                  layout(width=-2, height=-2, layoutGravity=1, marginTop=20),
-                  text(text="Tip: drag the floating icon to move it",
+                  layout(width=-2, height=-2, layoutGravity=1, marginTop=14,
+                         gravity=17),
+                  text(text="Tip: drag the floating icon or the open menu "
+                            "anywhere on screen",
                        textSize=10, textColor=C_FAINT)))
     v.append(bean("btn_telegram", T_BUTTON, "Button", "linear_content", 4,
                   layout(width=-1, height=46, marginTop=14,
@@ -540,6 +545,11 @@ def update_popup(activity):
 def open_telegram(activity):
     return 'UpdateDialog.openTelegram(%s.this);' % activity
 
+
+def bind_shizuku(activity):
+    """Gives ShizukuCheck a context so late callbacks can still toast."""
+    return 'ShizukuCheck.bind(%s.this);' % activity
+
 CHECK_SHIZUKU = (
     'ShizukuCheck.checkAsync(new ShizukuCheck.Callback() { '
     'public void onResult(final boolean running) { '
@@ -554,18 +564,23 @@ CHECK_SHIZUKU = (
 def main_activity_logic():
     """Login screen logic."""
     # ---- onCreate --------------------------------------------------------
+    bind = b_raw(bind_shizuku("MainActivity"))
     attach = b_raw(attach_bg("MainActivity"))
     popup = b_raw(update_popup("MainActivity"))
+    bind["nextBlock"] = int(attach["id"])
     attach["nextBlock"] = int(popup["id"])
-    on_create = [attach, popup]
+    on_create = [bind, attach, popup]
 
     # ---- btn_login onClick ----------------------------------------------
     blocks = []
 
     user_get = b_get_text("et_username")
     pass_get = b_get_text("et_password")
-    user_eq = b_equals(ref(user_get), LOGIN_USER)
-    pass_eq = b_equals(ref(pass_get), LOGIN_PASS)
+
+    # The credentials never appear in the generated Java. AuthCore holds only a
+    # salted, iterated SHA-256 digest, so decompiling the APK yields nothing.
+    ok = b_raw_b("AuthCore.verify(et_username.getText().toString(), "
+                 "et_password.getText().toString())")
 
     # success chain
     msg_ok = b_set_text("tv_msg", "Access granted")
@@ -582,27 +597,19 @@ def main_activity_logic():
     shizuku["nextBlock"] = int(start["id"])
     start["nextBlock"] = int(finish["id"])
 
-    # wrong password
-    msg_bad_pass = b_set_text("tv_msg", "Wrong password")
-    toast_bad_pass = b_toast("Access denied")
-    msg_bad_pass["nextBlock"] = int(toast_bad_pass["id"])
+    # access denied (same message either way - no user enumeration)
+    msg_bad = b_set_text("tv_msg", "Access denied")
+    toast_bad = b_toast("Access denied")
+    msg_bad["nextBlock"] = int(toast_bad["id"])
 
-    # wrong username
-    msg_bad_user = b_set_text("tv_msg", "Unknown username")
-    toast_bad_user = b_toast("Access denied")
-    msg_bad_user["nextBlock"] = int(toast_bad_user["id"])
-
-    inner_if = b_if_else(ref(pass_eq), int(msg_ok["id"]), int(msg_bad_pass["id"]))
-    outer_if = b_if_else(ref(user_eq), int(inner_if["id"]), int(msg_bad_user["id"]))
+    outer_if = b_if_else(ref(ok), int(msg_ok["id"]), int(msg_bad["id"]))
 
     # ---- tv_telegram onClick ---------------------------------------------
     telegram_blocks = [b_raw(open_telegram("MainActivity"))]
 
-    blocks = [outer_if, user_eq, user_get,
-              inner_if, pass_eq, pass_get,
+    blocks = [outer_if, ok, user_get, pass_get,
               msg_ok, toast_ok, set_screen, put_extra, shizuku, start, finish,
-              msg_bad_pass, toast_bad_pass,
-              msg_bad_user, toast_bad_user]
+              msg_bad, toast_bad]
 
     return {
         "var": [],
@@ -627,17 +634,22 @@ def main_activity_logic():
 
 def injector_activity_logic():
     # ---- onCreate --------------------------------------------------------
+    bind = b_raw(bind_shizuku("InjectorActivity"))
     attach = b_raw(attach_bg("InjectorActivity"))
     greet = b_raw(
         'String _shadowUser = getIntent().getStringExtra("user"); '
         'if (_shadowUser != null && _shadowUser.length() > 0) { '
         'tv_username.setText(_shadowUser); }'
     )
+    bind["nextBlock"] = int(attach["id"])
     attach["nextBlock"] = int(greet["id"])
-    on_create = [attach, greet]
+    on_create = [bind, attach, greet]
 
     # ---- btn_check onClick ----------------------------------------------
     check = [b_raw(CHECK_SHIZUKU)]
+
+    # ---- btn_shizuku_perm onClick ----------------------------------------
+    perm = [b_raw("ShizukuCheck.requestPermission(InjectorActivity.this);")]
 
     # ---- btn_inject onClick ---------------------------------------------
     can_draw = b_raw_b("FloatingService.canDrawOverlays(InjectorActivity.this)")
@@ -675,6 +687,8 @@ def injector_activity_logic():
             {"eventName": "onClick", "eventType": 1,
              "targetId": "btn_check", "targetType": 3},
             {"eventName": "onClick", "eventType": 1,
+             "targetId": "btn_shizuku_perm", "targetType": 3},
+            {"eventName": "onClick", "eventType": 1,
              "targetId": "btn_inject", "targetType": 3},
             {"eventName": "onClick", "eventType": 1,
              "targetId": "btn_stop", "targetType": 3},
@@ -684,6 +698,7 @@ def injector_activity_logic():
         "sections": {
             "onCreate_initializeLogic": on_create,
             "btn_check_onClick": check,
+            "btn_shizuku_perm_onClick": perm,
             "btn_inject_onClick": inject,
             "btn_stop_onClick": stop_blocks,
             "btn_telegram_onClick": telegram,
@@ -756,6 +771,9 @@ PERMISSION = json.dumps([
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.POST_NOTIFICATIONS",
     "android.permission.WAKE_LOCK",
+    # Declaring this is what makes Shadow Injector show up in
+    # Shizuku Manager -> "Authorized applications" so it can be granted access.
+    "moe.shizuku.manager.permission.API_V23",
 ], separators=(",", ":"))
 
 PROGUARD = json.dumps({"debug": "false", "enabled": "false"},
@@ -790,7 +808,24 @@ VIEW_ROOT = json.dumps({
     },
 }, separators=(",", ":"))
 
+# Injected inside <application> (Sketchware appends this file to the last
+# component line, i.e. still inside the <application> tag).
+# ${applicationId} is replaced by Sketchware with the real package name.
+#
+# The <meta-data> + <provider> pair is the Shizuku client handshake: the
+# provider is how the Shizuku server hands this app its binder. Without it the
+# app never appears in Shizuku Manager's authorized list.
 APP_COMPONENTS = (
+    '<!-- Shizuku client support (API v11+) -->\n'
+    '<meta-data\n'
+    '    android:name="moe.shizuku.client.V3_SUPPORT"\n'
+    '    android:value="true" />\n'
+    '<provider\n'
+    '    android:name="rikka.shizuku.ShizukuProvider"\n'
+    '    android:authorities="${applicationId}.shizuku"\n'
+    '    android:exported="true"\n'
+    '    android:multiprocess="false"\n'
+    '    android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />\n'
     '<service\n'
     '    android:name=".FloatingService"\n'
     '    android:enabled="true"\n'

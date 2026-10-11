@@ -3,8 +3,8 @@
 A ready-to-import SketchWare Pro project: anime-styled dark UI, animated background,
 login screen, injector panel, floating overlay menu with Shizuku status.
 
-**Deliverable:** `dist/Shadow Injector v1.1 (com.shadow.injector, 2).swb`  
-Simple-named copy for downloading: `dist/ShadowInjector_v1.1.swb`
+**Deliverable:** `dist/Shadow Injector v1.2 (com.shadow.injector, 3).swb`  
+Simple-named copy for downloading: `dist/ShadowInjector_v1.2.swb`
 
 Zero external libraries, zero local libs — it imports and builds with a stock
 SketchWare Pro install.
@@ -13,7 +13,7 @@ SketchWare Pro install.
 
 ## 1. Install on your phone
 
-1. Copy `dist/ShadowInjector_v1.1.swb` to your phone.
+1. Copy `dist/ShadowInjector_v1.2.swb` to your phone.
 2. SketchWare Pro → **My Projects** → ⋮ (top right) → **Restore from backup** /
    **Import project** → pick the `.swb`.
 3. Open **Shadow Injector** → press the **run** button to build the APK.
@@ -33,6 +33,10 @@ Shown once on the very first app open (`UpdateDialog`):
 * **EXIT** → closes the app
 * **Do not show again** checkbox → remembered in SharedPreferences
 
+The dialog is **invincible**: tapping outside does nothing, the BACK key is
+swallowed, and the only exits are the three buttons. Leave the checkbox
+unticked and it comes back on the next launch.
+
 Telegram link: `https://t.me/+BBimnHMiSvpiYTBl`
 (change `TELEGRAM_URL` at the top of `src/data/files/java/UpdateDialog.java`)
 
@@ -42,7 +46,9 @@ Wrong input shows a red message + toast.
 
 Also has a **"Join Telegram for updates"** pill at the bottom.
 
-**Default credentials: `admin` / `1234`**
+**Default credentials: `admin` / `1234`** — but they are *not printed anywhere
+on the screen*, and they are not stored in the project either. See
+[Passwords](#7-passwords-are-not-stored-in-the-project).
 Change them in `build/build.py` (`LOGIN_USER`, `LOGIN_PASS`) and rebuild — or
 just edit the two `equals` blocks in the `btn_login` onClick event inside
 SketchWare.
@@ -59,21 +65,39 @@ SketchWare.
 * `JOIN TELEGRAM FOR UPDATES` → opens the channel
 
 ### Floating overlay (`FloatingService`)
-* Draggable floating icon, tap it (a tap, not a drag) to expand the menu
-* Menu contains **HIDE** (`—`), **CLOSE** (`✕`), a **Shizuku status row**
-  (tap to re-check + toast) and **BUTTON 1 … BUTTON 4**
-* `HIDE` collapses back to the icon, `CLOSE` kills the overlay
-* Buttons 1–4 currently toast `"BUTTON n activated"` — wire your own payload there
 
-### Shizuku check (`ShizukuCheck.java`)
-No Shizuku API library is needed. It checks, in order:
-1. scan of `/proc/<pid>/cmdline` for `moe.shizuku.privileged.api`
-2. `pidof moe.shizuku.privileged.api`
-3. `ps -A`, then `ps`
+Tap **INJECT** and a 62dp round icon appears. Tap it → the menu opens.
 
-Runs off the main thread and reports back on the UI thread.
+* **Draggable anywhere** — grab the floating icon, the menu title bar, any empty
+  part of the panel, *or* start the drag on any button (a press that doesn't
+  move still counts as a tap). The bubble is clamped so it can never be lost
+  off-screen.
+* **BUTTON 1..4 are ON/OFF toggles** — the whole row flips from dim slate
+  (`toggle_off.xml`) to a neon green→cyan glow (`toggle_on.xml`), the label
+  reads `ON`/`OFF`, and the state is saved in `shadow_prefs` so it survives a
+  restart of the overlay.
+* **—** HIDE collapses back to the icon, **✕** CLOSE stops the overlay.
+* The status row re-checks Shizuku when tapped.
 
----
+### Shizuku (`ShizukuCheck.java` + the bundled Shizuku API)
+
+The real Shizuku API (`rikka.shizuku.*`, v12.1.0, MIT) is bundled under
+`src/data/files/java/`, so the app is a first-class Shizuku client:
+
+* `data/permission` declares **`moe.shizuku.manager.permission.API_V23`** and
+  `app_components.txt` registers **`rikka.shizuku.ShizukuProvider`** — that pair
+  is exactly what makes **Shadow Injector appear in Shizuku Manager →
+  Authorized applications**, so you can grant it there.
+* `GRANT SHIZUKU ACCESS` calls `Shizuku.requestPermission(...)`.
+* Detection uses **`Shizuku.pingBinder()`**, not a `/proc` scan. The binder only
+  lives while the *server* is up, which fixes the old false
+  "Shizuku is running" (a `/proc` hit fired whenever the Shizuku manager process
+  merely existed — including when it was open but the server was never started,
+  or was just sitting cached in the background). It also waits up to 1.5 s for
+  Shizuku to push the binder to the provider, so a check fired immediately after
+  launch isn't a false negative.
+* `CHECK SHIZUKU` still toasts exactly `Shizuku is running` /
+  `Shizuku isn't running`.
 
 ## 3. Theme / assets
 
@@ -180,3 +204,53 @@ and `project` → `.sketchware/mysc/list/<sc_id>/project`.
   (required from Android 8 onwards).
 * AppCompat is enabled; both activities are `NoActionBar` (dark status bar is set
   at runtime).
+
+## 7. Passwords are not stored in the project
+
+The login check is a single call:
+
+```java
+AuthCore.verify(et_username.getText().toString(),
+                et_password.getText().toString())
+```
+
+`AuthCore.java` contains **no username and no password**. It holds a
+**salted, 4096-round SHA-256** digest, split into XOR-scrambled byte tables that
+are re-assembled at runtime, compared in constant time. `strings` on the DEX
+turns up nothing usable, and the generated block code contains no credentials
+either (so they aren't sitting in `MainActivity.java`).
+
+```
+$ strings classes.dex | grep -i -E 'admin|1234'
+(nothing)
+```
+
+To change the credentials:
+
+```bash
+python3 build/make_auth.py <username> <password>
+python3 build/build.py
+```
+
+Be realistic about the threat model: this stops casual snooping and `strings`,
+and makes patching annoying, but **any offline check can eventually be bypassed
+by someone who patches the APK**. If you need real enforcement, validate the
+login against a server. You can additionally turn on ProGuard in SketchWare
+(*Project → Settings → ProGuard*); it's left off here because it isn't exercised
+by this build.
+
+## 8. Changelog
+
+**v1.2**
+* Shizuku: bundled the real API → the app now appears in Shizuku Manager's
+  authorized list and can be granted there, plus a `GRANT SHIZUKU ACCESS` button.
+* Shizuku: detection via `pingBinder()` — no more false "is running".
+* Menu **and** floating icon are draggable anywhere (clamped to the screen).
+* BUTTON 1..4 became ON/OFF toggles with a colour flip + saved state.
+* Credentials moved into `AuthCore` (salted iterated SHA-256); no plaintext
+  anywhere and nothing printed on the login screen.
+* First-launch popup is invincible (no back, no tap-outside).
+* Your logo is now the real app icon, in-app logo and floating icon.
+
+**v1.1** — fixed the 6 `this`-in-listener compile errors, new neon button
+styles, Telegram link + first-launch popup.

@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Floating overlay menu for Shadow Injector.
-     Inflated by FloatingService and shown through WindowManager. -->
+     Inflated by FloatingService and shown through WindowManager.
+
+     Both the collapsed icon and the expanded menu are draggable anywhere on
+     screen: the icon is dragged by touching it, the menu is dragged by its
+     title bar or by any empty part of the panel. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content">
@@ -14,14 +18,14 @@
         android:padding="4dp">
 
         <FrameLayout
-            android:layout_width="60dp"
-            android:layout_height="60dp"
+            android:layout_width="62dp"
+            android:layout_height="62dp"
             android:background="@drawable/floating_icon_bg">
 
             <ImageView
                 android:id="@+id/img_icon"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
                 android:layout_gravity="center"
                 android:scaleType="fitCenter"
                 android:src="@drawable/floating_icon" />
@@ -33,26 +37,38 @@
     <!-- ===================== EXPANDED STATE (menu) ===================== -->
     <LinearLayout
         android:id="@+id/panel"
-        android:layout_width="212dp"
+        android:layout_width="222dp"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:background="@drawable/floating_bg"
         android:padding="8dp"
         android:visibility="gone">
 
-        <!-- header: title + HIDE + CLOSE -->
+        <!-- header: grip + title + HIDE + CLOSE  (drag handle) -->
         <LinearLayout
+            android:id="@+id/panel_header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:background="@drawable/floating_header_bg"
-            android:paddingLeft="10dp"
+            android:paddingLeft="6dp"
             android:paddingRight="6dp"
             android:paddingTop="6dp"
             android:paddingBottom="6dp">
 
             <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingLeft="2dp"
+                android:paddingRight="4dp"
+                android:text="&#10247;"
+                android:textColor="#6B5F8F"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/txt_title"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -64,8 +80,8 @@
 
             <TextView
                 android:id="@+id/btn_hide"
-                android:layout_width="28dp"
-                android:layout_height="24dp"
+                android:layout_width="30dp"
+                android:layout_height="26dp"
                 android:background="@drawable/floating_item_bg"
                 android:gravity="center"
                 android:text="&#8212;"
@@ -75,8 +91,8 @@
 
             <TextView
                 android:id="@+id/btn_close"
-                android:layout_width="28dp"
-                android:layout_height="24dp"
+                android:layout_width="30dp"
+                android:layout_height="26dp"
                 android:layout_marginLeft="6dp"
                 android:background="@drawable/floating_item_bg"
                 android:gravity="center"
@@ -102,54 +118,148 @@
             android:textSize="10sp"
             android:textStyle="bold" />
 
-        <!-- menu buttons -->
-        <TextView
+        <!-- ===================== TOGGLE BUTTONS ===================== -->
+
+        <LinearLayout
             android:id="@+id/btn1"
             android:layout_width="match_parent"
-            android:layout_height="40dp"
+            android:layout_height="42dp"
             android:layout_marginTop="6dp"
-            android:background="@drawable/floating_item_bg"
-            android:gravity="center"
-            android:text="BUTTON 1"
-            android:textColor="#EDE9FE"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:background="@drawable/toggle_off"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingLeft="14dp"
+            android:paddingRight="12dp">
 
-        <TextView
+            <TextView
+                android:id="@+id/lbl1"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:singleLine="true"
+                android:text="BUTTON 1"
+                android:textColor="#C9BEE8"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/state1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="OFF"
+                android:textColor="#7C6FA8"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/btn2"
             android:layout_width="match_parent"
-            android:layout_height="40dp"
+            android:layout_height="42dp"
             android:layout_marginTop="6dp"
-            android:background="@drawable/floating_item_bg"
-            android:gravity="center"
-            android:text="BUTTON 2"
-            android:textColor="#EDE9FE"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:background="@drawable/toggle_off"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingLeft="14dp"
+            android:paddingRight="12dp">
 
-        <TextView
+            <TextView
+                android:id="@+id/lbl2"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:singleLine="true"
+                android:text="BUTTON 2"
+                android:textColor="#C9BEE8"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/state2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="OFF"
+                android:textColor="#7C6FA8"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/btn3"
             android:layout_width="match_parent"
-            android:layout_height="40dp"
+            android:layout_height="42dp"
             android:layout_marginTop="6dp"
-            android:background="@drawable/floating_item_bg"
-            android:gravity="center"
-            android:text="BUTTON 3"
-            android:textColor="#EDE9FE"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:background="@drawable/toggle_off"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingLeft="14dp"
+            android:paddingRight="12dp">
 
-        <TextView
+            <TextView
+                android:id="@+id/lbl3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:singleLine="true"
+                android:text="BUTTON 3"
+                android:textColor="#C9BEE8"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/state3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="OFF"
+                android:textColor="#7C6FA8"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/btn4"
             android:layout_width="match_parent"
-            android:layout_height="40dp"
+            android:layout_height="42dp"
             android:layout_marginTop="6dp"
-            android:background="@drawable/floating_item_bg"
+            android:background="@drawable/toggle_off"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingLeft="14dp"
+            android:paddingRight="12dp">
+
+            <TextView
+                android:id="@+id/lbl4"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:singleLine="true"
+                android:text="BUTTON 4"
+                android:textColor="#C9BEE8"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/state4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="OFF"
+                android:textColor="#7C6FA8"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:gravity="center"
-            android:text="BUTTON 4"
-            android:textColor="#EDE9FE"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:text="drag the title bar to move"
+            android:textColor="#4C4370"
+            android:textSize="8sp" />
 
     </LinearLayout>
 

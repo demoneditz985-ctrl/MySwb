@@ -3,9 +3,11 @@ package com.shadow.injector;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.view.KeyEvent;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
@@ -17,11 +19,19 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
- * First launch dialog: forces (well, strongly encourages) the user to join the
- * Telegram channel before using the app.
+ * First launch dialog: forces the user to deal with the Telegram channel
+ * before using the app.
+ *
+ * The dialog is <b>invincible</b> - it cannot be escaped:
+ * <ul>
+ *   <li>tapping outside does nothing</li>
+ *   <li>the BACK button is swallowed</li>
+ *   <li>the only ways out are the three buttons</li>
+ * </ul>
  *
  * Buttons: JOIN CHANNEL (opens Telegram) / CLOSE (continue) / EXIT (close app)
  * plus a "Do not show again" checkbox that is remembered in SharedPreferences.
+ * Unticking it means the dialog comes back on the next launch.
  *
  * Usage from Sketchware blocks:
  * <pre>
@@ -100,6 +110,18 @@ public class UpdateDialog {
         skipParams.topMargin = (int) (10 * d);
         root.addView(skip, skipParams);
 
+        // ---- footnote -----------------------------------------------------
+        TextView footnote = new TextView(activity);
+        footnote.setText("Tick \"Do not show again\" to skip this screen next time.");
+        footnote.setTextColor(0xFF4C4370);
+        footnote.setTextSize(10f);
+        footnote.setGravity(Gravity.CENTER_HORIZONTAL);
+        LinearLayout.LayoutParams footParams =
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+        footParams.topMargin = (int) (4 * d);
+        root.addView(footnote, footParams);
+
         // ---- buttons ------------------------------------------------------
         final AlertDialog dialog = new AlertDialog.Builder(activity).create();
 
@@ -139,7 +161,21 @@ public class UpdateDialog {
         root.addView(exit);
 
         dialog.setView(root);
+
+        // ---- make it impossible to escape --------------------------------
         dialog.setCancelable(false);
+        dialog.setCanceledOnTouchOutside(false);
+        dialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
+            @Override
+            public boolean onKey(DialogInterface d, int keyCode, KeyEvent event) {
+                // swallow BACK (and the hardware search/menu keys) so the only
+                // way out is one of the three buttons
+                return keyCode == KeyEvent.KEYCODE_BACK
+                        || keyCode == KeyEvent.KEYCODE_SEARCH
+                        || keyCode == KeyEvent.KEYCODE_MENU;
+            }
+        });
+
         try {
             if (dialog.getWindow() != null) {
                 dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
