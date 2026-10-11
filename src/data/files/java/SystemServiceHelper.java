@@ -18,8 +18,8 @@ import java.util.Objects;
 @SuppressLint("PrivateApi")
 public class SystemServiceHelper {
 
-    private static final Map<String, IBinder> SYSTEM_SERVICE_CACHE = new HashMap<>();
-    private static final Map<String, Integer> TRANSACT_CODE_CACHE = new HashMap<>();
+    private static final Map<String, IBinder> SYSTEM_SERVICE_CACHE = new HashMap<String, IBinder>();
+    private static final Map<String, Integer> TRANSACT_CODE_CACHE = new HashMap<String, Integer>();
 
     private static Method getService;
 

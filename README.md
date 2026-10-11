@@ -159,6 +159,21 @@ python3 build/verify_logic.py /tmp/logic     # optional sanity check
 
 ---
 
+## 4a. Gotcha: SketchWare compiles at **source level 1.7**
+
+Every Java 8+ construct is a hard error in `data/files/java/*.java`. Known
+traps, all of which appear in upstream libraries you might vendor in:
+
+| Construct | Fails as | Replace with |
+|---|---|---|
+| `() -> {}` | *Lambda expressions are allowed only at source level 1.8 or above* | `new Runnable() { public void run() { ... } }` |
+| `this::method` | *Method references are allowed only at source level 1.8 or above* | anonymous class |
+| `new HashMap<>()` **as a method argument** | *Type mismatch: cannot convert from `Map<Object,Object>`* | `new HashMap<String, Foo>()` — 1.7 only infers the diamond in an assignment, not through a generic method call |
+| capturing a local/parameter in an anonymous class | *Cannot refer to the non-final local variable* | declare it `final` |
+
+The bundled Shizuku API has already been converted. If you ever re-vendor a
+newer copy of it, re-run the same conversion.
+
 ## 4b. Gotcha: never use `this` inside a click listener
 
 Blocks run inside an anonymous `View.OnClickListener`, so `this` is the

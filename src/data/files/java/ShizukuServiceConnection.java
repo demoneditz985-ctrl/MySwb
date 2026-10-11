@@ -18,7 +18,7 @@ class ShizukuServiceConnection extends IShizukuServiceConnection.Stub {
 
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 
-    private final Set<ServiceConnection> connections = new HashSet<>();
+    private final Set<ServiceConnection> connections = new HashSet<ServiceConnection>();
     private final ComponentName componentName;
 
     public ShizukuServiceConnection(Shizuku.UserServiceArgs args) {
@@ -40,16 +40,23 @@ class ShizukuServiceConnection extends IShizukuServiceConnection.Stub {
     }
 
     @Override
-    public void connected(IBinder binder) {
-        MAIN_HANDLER.post(() -> {
-                    for (ServiceConnection conn : connections) {
-                        conn.onServiceConnected(componentName, binder);
-                    }
+    public void connected(final IBinder binder) {
+        MAIN_HANDLER.post(new Runnable() {
+            @Override
+            public void run() {
+                for (ServiceConnection conn : connections) {
+                    conn.onServiceConnected(componentName, binder);
                 }
-        );
+            }
+        });
 
         try {
-            binder.linkToDeath(this::died, 0);
+            binder.linkToDeath(new IBinder.DeathRecipient() {
+                @Override
+                public void binderDied() {
+                    ShizukuServiceConnection.this.died();
+                }
+            }, 0);
         } catch (RemoteException ignored) {
         }
     }
@@ -59,11 +66,13 @@ class ShizukuServiceConnection extends IShizukuServiceConnection.Stub {
         if (dead) return;
         dead = true;
 
-        MAIN_HANDLER.post(() -> {
-                    for (ServiceConnection conn : connections) {
-                        conn.onServiceDisconnected(componentName);
-                    }
+        MAIN_HANDLER.post(new Runnable() {
+            @Override
+            public void run() {
+                for (ServiceConnection conn : connections) {
+                    conn.onServiceDisconnected(componentName);
                 }
-        );
+            }
+        });
     }
 }

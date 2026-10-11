@@ -111,7 +111,7 @@ public class ShizukuProvider extends ContentProvider {
      *
      * @param context Context
      */
-    public static void requestBinderForNonProviderProcess(@NonNull Context context) {
+    public static void requestBinderForNonProviderProcess(@NonNull final Context context) {
         if (isProviderProcess) {
             return;
         }

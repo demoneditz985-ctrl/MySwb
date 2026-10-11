@@ -18,7 +18,7 @@ import moe.shizuku.server.IRemoteProcess;
 
 public class ShizukuRemoteProcess extends Process implements Parcelable {
 
-    private static final Set<ShizukuRemoteProcess> CACHE = Collections.synchronizedSet(new ArraySet<>());
+    private static final Set<ShizukuRemoteProcess> CACHE = Collections.synchronizedSet(new ArraySet<ShizukuRemoteProcess>());
 
     private static final String TAG = "ShizukuRemoteProcess";
 
@@ -29,11 +29,14 @@ public class ShizukuRemoteProcess extends Process implements Parcelable {
     ShizukuRemoteProcess(IRemoteProcess remote) {
         this.remote = remote;
         try {
-            this.remote.asBinder().linkToDeath((IBinder.DeathRecipient) () -> {
-                this.remote = null;
-                Log.v(TAG, "remote process is dead");
+            this.remote.asBinder().linkToDeath(new IBinder.DeathRecipient() {
+                @Override
+                public void binderDied() {
+                    ShizukuRemoteProcess.this.remote = null;
+                    Log.v(TAG, "remote process is dead");
 
-                CACHE.remove(ShizukuRemoteProcess.this);
+                    CACHE.remove(ShizukuRemoteProcess.this);
+                }
             }, 0);
         } catch (RemoteException e) {
             Log.e(TAG, "linkToDeath", e);

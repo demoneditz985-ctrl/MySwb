@@ -71,9 +71,12 @@ public class Shizuku {
         }
     };
 
-    private static final IBinder.DeathRecipient DEATH_RECIPIENT = () -> {
-        binderReady = false;
-        onBinderReceived(null, null);
+    private static final IBinder.DeathRecipient DEATH_RECIPIENT = new IBinder.DeathRecipient() {
+        @Override
+        public void binderDied() {
+            binderReady = false;
+            onBinderReceived(null, null);
+        }
     };
 
     @RestrictTo(LIBRARY_GROUP_PREFIX)
@@ -149,9 +152,9 @@ public class Shizuku {
         void onRequestPermissionResult(int requestCode, int grantResult);
     }
 
-    private static final List<OnBinderReceivedListener> RECEIVED_LISTENERS = new CopyOnWriteArrayList<>();
-    private static final List<OnBinderDeadListener> DEAD_LISTENERS = new CopyOnWriteArrayList<>();
-    private static final List<OnRequestPermissionResultListener> PERMISSION_LISTENERS = new CopyOnWriteArrayList<>();
+    private static final List<OnBinderReceivedListener> RECEIVED_LISTENERS = new CopyOnWriteArrayList<OnBinderReceivedListener>();
+    private static final List<OnBinderDeadListener> DEAD_LISTENERS = new CopyOnWriteArrayList<OnBinderDeadListener>();
+    private static final List<OnRequestPermissionResultListener> PERMISSION_LISTENERS = new CopyOnWriteArrayList<OnRequestPermissionResultListener>();
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 
     /**
@@ -183,12 +186,17 @@ public class Shizuku {
         addBinderReceivedListener(Objects.requireNonNull(listener), true);
     }
 
-    private static void addBinderReceivedListener(@NonNull OnBinderReceivedListener listener, boolean sticky) {
+    private static void addBinderReceivedListener(@NonNull final OnBinderReceivedListener listener, boolean sticky) {
         if (sticky && binderReady) {
             if (Looper.myLooper() == Looper.getMainLooper()) {
                 listener.onBinderReceived();
             } else {
-                MAIN_HANDLER.post(listener::onBinderReceived);
+                MAIN_HANDLER.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        listener.onBinderReceived();
+                    }
+                });
             }
         }
         RECEIVED_LISTENERS.add(listener);
@@ -209,7 +217,12 @@ public class Shizuku {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             dispatchBinderReceivedListeners();
         } else {
-            MAIN_HANDLER.post(Shizuku::dispatchBinderReceivedListeners);
+            MAIN_HANDLER.post(new Runnable() {
+                @Override
+                public void run() {
+                    dispatchBinderReceivedListeners();
+                }
+            });
         }
     }
 
@@ -249,7 +262,12 @@ public class Shizuku {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             dispatchBinderDeadListeners();
         } else {
-            MAIN_HANDLER.post(Shizuku::dispatchBinderDeadListeners);
+            MAIN_HANDLER.post(new Runnable() {
+                @Override
+                public void run() {
+                    dispatchBinderDeadListeners();
+                }
+            });
         }
     }
 
@@ -283,11 +301,16 @@ public class Shizuku {
         return PERMISSION_LISTENERS.remove(listener);
     }
 
-    static void scheduleRequestPermissionResultListener(int requestCode, int result) {
+    static void scheduleRequestPermissionResultListener(final int requestCode, final int result) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             dispatchRequestPermissionResultListener(requestCode, result);
         } else {
-            MAIN_HANDLER.post(() -> dispatchRequestPermissionResultListener(requestCode, result));
+            MAIN_HANDLER.post(new Runnable() {
+                @Override
+                public void run() {
+                    dispatchRequestPermissionResultListener(requestCode, result);
+                }
+            });
         }
     }
 

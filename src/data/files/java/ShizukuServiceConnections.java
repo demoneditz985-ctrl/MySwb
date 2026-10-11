@@ -9,7 +9,7 @@ import java.util.Map;
 
 class ShizukuServiceConnections {
 
-    private static final Map<String, ShizukuServiceConnection> CACHE = Collections.synchronizedMap(new HashMap<>());
+    private static final Map<String, ShizukuServiceConnection> CACHE = Collections.synchronizedMap(new HashMap<String, ShizukuServiceConnection>());
 
     @Nullable
     static ShizukuServiceConnection get(Shizuku.UserServiceArgs args) {
